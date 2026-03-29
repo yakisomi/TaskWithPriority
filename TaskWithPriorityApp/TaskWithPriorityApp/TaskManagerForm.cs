@@ -29,7 +29,7 @@ namespace TaskWithPriorityApp
             {
                 Location = new Point(10, 10),
                 Width = 200,
-                Text = "Описание задачи"
+                Text = "Описание"
             };
 
             _priorityComboBox = new ComboBox
@@ -184,11 +184,27 @@ namespace TaskWithPriorityApp
         private string FormatTask(TaskWithPriority t) =>
             $"{(t.IsCompleted ? "[X]" : "[ ]")} {t.Description} (Приоритет: {t.Priority})";
 
+
         private string GetDescriptionFromSelectedItem()
         {
-            var parts = _tasksListBox.SelectedItem.ToString()
-                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length >= 3 ? parts[2] : string.Empty;
+            var selected = _tasksListBox.SelectedItem.ToString();
+
+            if (selected.StartsWith("["))
+            {
+                var bracketEnd = selected.IndexOf(']');
+                if (bracketEnd >= 0 && selected.Length > bracketEnd + 2)
+                {
+                    selected = selected.Substring(bracketEnd + 2);
+                }
+            }
+
+            var priorityIndex = selected.IndexOf(" (Приоритет:");
+            if (priorityIndex > 0)
+            {
+                selected = selected.Substring(0, priorityIndex);
+            }
+
+            return selected;
         }
     }
 }

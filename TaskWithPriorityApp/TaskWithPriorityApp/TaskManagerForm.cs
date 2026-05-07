@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Text;
 using System.Windows.Forms;
 
 namespace TaskWithPriorityApp
@@ -16,11 +18,14 @@ namespace TaskWithPriorityApp
         private readonly Button _sortButton;
         private readonly ListBox _tasksListBox;
 
+        private readonly ComboBox _notificationComboBox;
+        private readonly Timer _notificationTimer;
+
         public TaskManagerForm()
         {
             Text = "Управление задачами с приоритетом (Вариант 9)";
             Width = 600;
-            Height = 500;
+            Height = 580;
             StartPosition = FormStartPosition.CenterScreen;
 
             _taskManager = new TaskManagerWithPriority();
@@ -42,7 +47,8 @@ namespace TaskWithPriorityApp
 
             _deadlinePicker = new DateTimePicker
             {
-                Location = new Point(330, 10)
+                Location = new Point(330, 10),
+                Format = DateTimePickerFormat.Short
             };
 
             _addButton = new Button
@@ -77,17 +83,36 @@ namespace TaskWithPriorityApp
             };
             _sortButton.Click += OnSortClick;
 
+            _notificationComboBox = new ComboBox
+            {
+                Location = new Point(10, 70),
+                Width = 150,
+                Items = { "За 7 дней", "За 3 дня", "За 1 день" },
+                SelectedIndex = 1,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+
+            _notificationTimer = new Timer
+            {
+                Interval = 600000,
+                Enabled = true
+            };
+
+            _notificationTimer.Tick += (s, e) => CheckNotifications();
+
             _tasksListBox = new ListBox
             {
-                Location = new Point(10, 80),
+                Location = new Point(10, 110),
                 Width = 560,
-                Height = 350
+                Height = 400
             };
 
             Controls.AddRange(new Control[]
             {
                 _descriptionTextBox, _priorityComboBox, _deadlinePicker,
-                _addButton, _removeButton, _toggleButton, _sortButton, _tasksListBox
+                _addButton, _removeButton, _toggleButton, _sortButton,
+                _notificationComboBox,
+                _tasksListBox
             });
 
             UpdateTasksList();
@@ -108,6 +133,7 @@ namespace TaskWithPriorityApp
                 _taskManager.AddTask(new TaskWithPriority(_descriptionTextBox.Text, priority, _deadlinePicker.Value));
                 _descriptionTextBox.Clear();
                 UpdateTasksList();
+                CheckNotifications();
             }
             catch (Exception ex)
             {
@@ -184,7 +210,6 @@ namespace TaskWithPriorityApp
         private string FormatTask(TaskWithPriority t) =>
             $"{(t.IsCompleted ? "[X]" : "[ ]")} {t.Description} (Приоритет: {t.Priority})";
 
-
         private string GetDescriptionFromSelectedItem()
         {
             var selected = _tasksListBox.SelectedItem.ToString();
@@ -205,6 +230,67 @@ namespace TaskWithPriorityApp
             }
 
             return selected;
+        }
+
+        private void CheckNotifications()
+        {
+            TimeSpan notificationThreshold = GetNotificationThreshold();
+            var pendingTasks = new List<TaskWithPriority>();
+            var timeLefts = new Dictionary<string, TimeSpan>();
+
+            foreach (var task in _taskManager.Tasks)
+            {
+                if (task.IsCompleted) continue;
+
+                TimeSpan timeUntilDeadline = task.Deadline.Date - DateTime.Now.Date;
+
+                if (timeUntilDeadline <= notificationThreshold && timeUntilDeadline >= TimeSpan.Zero)
+                {
+                    pendingTasks.Add(task);
+                    timeLefts[task.Description] = timeUntilDeadline;
+                }
+            }
+
+            if (pendingTasks.Count > 0)
+            {
+                ShowCombinedNotification(pendingTasks, timeLefts);
+            }
+        }
+
+        private TimeSpan GetNotificationThreshold()
+        {
+            switch (_notificationComboBox.SelectedItem?.ToString())
+            {
+                case "За 7 дней":
+                    return TimeSpan.FromDays(7);
+                case "За 3 дня":
+                    return TimeSpan.FromDays(3);
+                case "За 1 день":
+                    return TimeSpan.FromDays(1);
+                default:
+                    return TimeSpan.FromDays(3);
+            }
+        }
+
+        private void ShowCombinedNotification(List<TaskWithPriority> tasks, Dictionary<string, TimeSpan> timeLefts)
+        {
+            StringBuilder message = new StringBuilder();
+            message.AppendLine($"Напоминание о задачах ({tasks.Count} шт.)!\n");
+
+            foreach (var task in tasks)
+            {
+                TimeSpan timeLeft = timeLefts[task.Description];
+                int daysLeft = (int)timeLeft.TotalDays;
+
+                message.AppendLine($"{task.Description}");
+                message.AppendLine($"Приоритет: {task.Priority}");
+                message.AppendLine($"Осталось: {daysLeft} дн.");
+                message.AppendLine($"Дедлайн: {task.Deadline:dd.MM.yyyy}");
+                message.AppendLine();
+            }
+
+            MessageBox.Show(message.ToString(), "Уведомление о дедлайнах",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }
